@@ -1,10 +1,12 @@
 from aiohttp import web
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import json
 
 from db import Session, Advert, init_orm, close_orm
+from advert_schemas import AdvertCreate, AdvertUpdate
 
 app = web.Application()
 
@@ -35,6 +37,17 @@ def get_http_error(err_cls: type[web.HTTPClientError],
         text=json.dumps(err_msg),
         content_type="application/json"
     )
+
+
+async def validate_request(request: web.Request, schema: type) -> dict:
+    try:
+        json_data = await request.json()
+        return schema.model_validate(json_data).model_dump(exclude_none=True)
+    except ValidationError as error:
+        raise get_http_error(
+            web.HTTPBadRequest,
+            {"errors": json.loads(error.json())},
+        )
 
 
 #===================HTTP-методы================
@@ -68,7 +81,7 @@ class AdvertView(web.View):
 
 
     async def post(self):
-        json_data = await self.request.json()
+        json_data = await validate_request(self.request, AdvertCreate)
         advert = Advert(
             title=json_data["title"],
             description=json_data["description"],
@@ -78,12 +91,10 @@ class AdvertView(web.View):
         return web.json_response(advert.id_dict)
 
     async def patch(self):
-        json_data = await self.request.json()
+        json_data = await validate_request(self.request, AdvertUpdate)
         advert = await self.get_advert()
-        if "title" in json_data:
-            advert.title = json_data["title"]
-        if "description" in json_data:
-            advert.description = json_data["description"]
+        advert.title = json_data["title"]
+        advert.description = json_data["description"]
         if "owner" in json_data:
             advert.owner = json_data["owner"]
         await self.add_advert(advert)
