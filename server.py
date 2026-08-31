@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import json
 
 from db import Session, Advert, init_orm, close_orm
-from advert_schemas import AdvertCreate, AdvertUpdate
+from schemas import AdvertCreate, AdvertUpdate
 
 app = web.Application()
 
